@@ -1,0 +1,163 @@
+---
+title: "main"
+author: "Andrei Kasianov"
+date: "10 Apr 2020"
+output: pdf_document
+---
+
+```{r, echo=FALSE}
+library(dplyr)
+library(tidyr)
+library(anytime)
+library(zoo)
+```
+
+Dataset: Brent Historic Oil Prices
+Source: https://www.kaggle.com/mabusalah/brent-oil-prices
+
+
+```{r}
+brent = read.csv2('BrentOilPrices.csv', sep = ',', stringsAsFactors = FALSE)
+plot.ts(brent$Price)
+```
+
+
+```{r, warning=FALSE}
+brent = read.csv2('BrentOilPrices.csv', sep = ',', stringsAsFactors = FALSE)
+
+brent <- brent %>% separate(Date, sep="-", into = c("day", "month", "year"))
+brent$month <- match(brent$month, month.abb)
+dates <- paste(brent$day,brent$month,brent$year,sep="-")
+brent <- brent %>% mutate(date = as.Date(strptime(dates,format="%d-%m-%y")), price = Price)
+brent<-brent %>% filter(date>=as.Date('2002-01-01')) 
+brent$price <-as.numeric(brent$price)
+
+brent <-brent%>%group_by(year,month) %>% summarize(price =mean(price)) %>% ungroup()
+dates <- paste(brent$month,brent$year,sep="-")
+
+brent <- brent %>% mutate(date = as.Date(dates,format="%m-%Y"))
+brent$date <-as.yearmon(paste(brent$year,brent$month),"%y %m")
+brent <- brent %>% select(price,date)
+```
+
+
+```{r}
+library(tseries)
+plot.ts(brent$price)
+pacf(brent$price)
+acf(brent$price)
+adf.test(brent$price)
+
+
+
+```
+
+```{r}
+plot.ts(diff(log(brent$price),lag = 1))
+adf.test(diff(log(brent$price),lag = 1))
+
+plot.ts(diff(log(brent$price),lag = 2))
+adf.test(diff(log(brent$price),lag = 1))
+
+```
+
+
+```{r}
+modified_brent = diff(log(brent$price),lag = 1)
+plot.ts(modified_brent)
+
+
+
+
+modified_brent <-ts(modified_brent, frequency = 12)
+
+plot.ts(modified_brent)
+plot(decompose(modified_brent, type='additive'))
+plot(decompose(modified_brent, type='multiplicative'))
+
+```
+```{r}
+library(forecast)
+
+acf(modified_brent)
+pacf(modified_brent)
+model <-arima(modified_brent, order = c(1,0,1))
+
+arima(modified_brent, order = c(1,1,1), seasonal = list(order=c(1,0,1), period=12))
+
+
+```
+
+```{r}
+
+tsdiag(model)
+qqnorm(residuals(model))
+qqline(residuals(model))
+```
+
+```{r}
+plot.ts(modified_brent)
+plot.ts(brent$price)
+
+
+
+
+
+```
+```{r}
+
+brent <-ts(brent$price, frequency = 12)
+
+fit = HoltWinters(brent, seasonal = 'additive')
+plot(forecast(fit,h=12))
+
+
+
+
+```
+
+```{r}
+fit2 =arima(brent,order=c(1,0,1))
+fit2
+predict(fit2, n.ahead = 12)
+plot(forecast(fit2,h=12))
+```
+
+```{r}
+
+train = brent[1:206]
+test = brent[207:218]
+
+fit2 = arima(train, order=c(1,1,1))
+arimafc = forecast(fit2, h=12)
+arrimaerror = test-arimafc$mean
+mae = mean(abs(arrimaerror))
+rmse = sqrt(mean(arrimaerror^2))
+mape = mean(abs(arrimaerror*100)/test)
+
+mae
+rmse
+mape
+```
+
+```{r}
+
+train = brent[1:206]
+test = brent[207:218]
+
+fit = HoltWinters(train, gamma = F)
+arimafc = forecast(fit, h=12)
+arrimaerror = test-arimafc$mean
+mae = mean(abs(arrimaerror))
+rmse = sqrt(mean(arrimaerror^2))
+mape = mean(abs(arrimaerror*100)/test)
+
+mae
+rmse
+mape
+```
+
+```{r}
+fit
+fit2
+```
